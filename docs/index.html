@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表彰式管理システム</title>
+    
+    <!-- CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- JavaScript -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src="firebaseConfig.js" defer></script>
+    <script type="module" src="script.js" defer></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>表彰式管理システム</h1>
+        
+        <!-- タブナビゲーション -->
+        <div class="tab-navigation">
+            <button class="tab-button" data-tab="file-management">ファイル管理</button>
+            <button class="tab-button" data-tab="task-management">タスク管理</button>
+            <button class="tab-button" data-tab="schedule-management">スケジュール</button>
+        </div>
+
+        <!-- ファイル管理セクション -->
+        <div id="file-management" class="tab-content">
+            <h2>ファイル管理</h2>
+            
+            <!-- カテゴリー管理 -->
+            <div class="category-management">
+                <h3>カテゴリー管理</h3>
+                <div class="category-input-container">
+                    <input type="text" id="categoryInput" placeholder="新しいカテゴリー名">
+                    <button type="button" id="addCategoryButton">カテゴリー追加</button>
+                </div>
+            </div>
+
+            <!-- カテゴリー別ファイル管理 -->
+            <div id="categoryList" class="category-list"></div>
+        </div>
+
+        <!-- タスク管理セクション -->
+        <div id="task-management" class="tab-content">
+            <h2>タスク管理</h2>
+            <div class="task-input-container">
+                <input type="text" id="taskInput" placeholder="新しいタスク">
+                <input type="date" id="taskDate">
+                <select id="taskPriority">
+                    <option value="low">優先度: 低</option>
+                    <option value="medium">優先度: 中</option>
+                    <option value="high">優先度: 高</option>
+                </select>
+                <select id="taskCategory">
+                    <option value="preparation">準備</option>
+                    <option value="ceremony">式典</option>
+                    <option value="document">資料作成</option>
+                    <option value="other">その他</option>
+                </select>
+                <button type="button" id="addTaskButton">タスク追加</button>
+            </div>
+            <div class="task-filters">
+                <select id="filterPriority">
+                    <option value="all">全ての優先度</option>
+                    <option value="high">高優先度</option>
+                    <option value="medium">中優先度</option>
+                    <option value="low">低優先度</option>
+                </select>
+                <select id="filterCategory">
+                    <option value="all">全てのカテゴリー</option>
+                    <option value="preparation">準備</option>
+                    <option value="ceremony">式典</option>
+                    <option value="document">資料作成</option>
+                    <option value="other">その他</option>
+                </select>
+            </div>
+            <div id="taskList" class="task-list"></div>
+        </div>
+
+        <!-- スケジュール管理セクション -->
+        <div id="schedule-management" class="tab-content">
+            <h2>スケジュール管理</h2>
+            <!-- カレンダー表示エリア -->
+            <div id="calendar"></div>
+            
+            <!-- イベント追加フォーム -->
+            <div class="event-form">
+                <h3>予定を追加</h3>
+                <div class="form-group">
+                    <input type="text" id="eventTitle" placeholder="タイトル" required>
+                    <input type="date" id="eventDate" required>
+                    <input type="time" id="eventStartTime">
+                    <input type="time" id="eventEndTime">
+                    <input type="text" id="eventLocation" placeholder="場所">
+                    <select id="eventType">
+                        <option value="ceremony">表彰式</option>
+                        <option value="meeting">打ち合わせ</option>
+                        <option value="preparation">準備</option>
+                        <option value="other">その他</option>
+                    </select>
+                    <textarea id="eventDescription" placeholder="詳細"></textarea>
+                    <button type="button" id="addEventButton">予定を追加</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- イベント詳細モーダル -->
+        <div id="eventModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3 id="modalTitle"></h3>
+                <p id="modalDateTime"></p>
+                <p id="modalLocation"></p>
+                <p id="modalDescription"></p>
+                <div class="modal-actions">
+                    <button type="button" id="editEventButton">編集</button>
+                    <button type="button" id="deleteEventButton" class="delete-btn">削除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- イベント編集モーダル -->
+        <div id="editEventModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>予定を編集</h3>
+                <div class="form-group">
+                    <input type="text" id="editEventTitle" placeholder="タイトル" required>
+                    <input type="date" id="editEventDate" required>
+                    <input type="time" id="editEventStartTime">
+                    <input type="time" id="editEventEndTime">
+                    <input type="text" id="editEventLocation" placeholder="場所">
+                    <select id="editEventType">
+                        <option value="ceremony">表彰式</option>
+                        <option value="meeting">打ち合わせ</option>
+                        <option value="preparation">準備</option>
+                        <option value="other">その他</option>
+                    </select>
+                    <textarea id="editEventDescription" placeholder="詳細"></textarea>
+                    <div class="modal-actions">
+                        <button type="button" id="updateEventButton">更新</button>
+                        <button type="button" id="cancelEditButton" class="cancel-btn">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 表彰式管理システム</p>
+    </footer>
+
+    <!-- カスタムスクリプト -->
+    <script src="script.js"></script>
+</body>
+</html>
