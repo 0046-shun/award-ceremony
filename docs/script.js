@@ -69,7 +69,7 @@ class TabManager {
     }
 }
 
-// ファイル管理クラス
+// ファイル管理クラス（Firebase対応版）
 class FileManager {
     constructor() {
         this.categories = [];
@@ -87,7 +87,6 @@ class FileManager {
             const categoriesRef = collection(db, 'categories');
             const snapshot = await getDocs(categoriesRef);
             
-            // カテゴリーが存在しない場合のみデフォルトカテゴリーを追加
             if (snapshot.empty) {
                 for (const category of this.defaultCategories) {
                     await addDoc(categoriesRef, { name: category });
@@ -130,20 +129,19 @@ class FileManager {
             console.error('Error setting up Firebase listeners:', error);
         }
     }
+
     async addCategory() {
         const input = document.getElementById('categoryInput');
         const categoryName = input.value.trim();
 
         if (categoryName) {
             try {
-                // 重複チェック
                 const exists = this.categories.some(cat => cat.name === categoryName);
                 if (exists) {
                     alert('同名のカテゴリーが既に存在します。');
                     return;
                 }
 
-                // カテゴリーを追加
                 const categoriesRef = collection(db, 'categories');
                 await addDoc(categoriesRef, { name: categoryName });
                 input.value = '';
@@ -153,7 +151,6 @@ class FileManager {
             }
         }
     }
-
     async deleteCategory(categoryId, categoryName) {
         if (confirm(`カテゴリー「${categoryName}」を削除してもよろしいですか？\nこのカテゴリー内のファイルもすべて削除されます。`)) {
             try {
@@ -253,20 +250,12 @@ class FileManager {
 
     async handleFileUpload(categoryName, event) {
         const files = event.target.files;
-        const maxFileSize = 5 * 1024 * 1024; // 5MB制限
 
         for (const file of Array.from(files)) {
             try {
-                // ファイルサイズチェック
-                if (file.size > maxFileSize) {
-                    alert(`ファイル "${file.name}" は5MBを超えています。`);
-                    continue;
-                }
-
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     try {
-                        // 既存のファイルチェック
                         const filesRef = collection(db, 'files');
                         const q = query(
                             filesRef, 
@@ -277,13 +266,11 @@ class FileManager {
 
                         let version = 1;
                         if (!snapshot.empty) {
-                            // 既存のファイルがある場合、バージョンを更新
                             const existingFile = snapshot.docs[0];
                             version = (existingFile.data().version || 0) + 1;
                             await deleteDoc(existingFile.ref);
                         }
 
-                        // 新しいファイルを追加
                         await addDoc(filesRef, {
                             name: file.name,
                             content: e.target.result,
@@ -321,7 +308,7 @@ class FileManager {
         }
     }
 }
-// タスク管理クラス
+// タスク管理クラス（Firebase対応版）
 class TaskManager {
     constructor() {
         this.tasks = [];
@@ -473,6 +460,36 @@ class TaskManager {
         });
     }
 
+    async showEditTaskModal(task) {
+        try {
+            const result = await this.showTaskEditDialog(task);
+            if (result) {
+                const taskRef = doc(db, 'tasks', task.id);
+                await updateDoc(taskRef, {
+                    ...result,
+                    lastUpdated: new Date().toISOString()
+                });
+            }
+        } catch (error) {
+            console.error('Error updating task:', error);
+            alert('タスクの更新中にエラーが発生しました。');
+        }
+    }
+
+    showTaskEditDialog(task) {
+        return new Promise((resolve) => {
+            const newText = prompt('タスクを編集:', task.text);
+            if (newText !== null) {
+                resolve({
+                    text: newText,
+                    lastUpdated: new Date().toISOString()
+                });
+            } else {
+                resolve(null);
+            }
+        });
+    }
+
     getPriorityLabel(priority) {
         const labels = {
             high: '高',
@@ -501,6 +518,298 @@ class TaskManager {
                 <div>未完了: ${pending}</div>
             `;
         }
+    }
+}
+// スケジュール管理クラス
+class ScheduleManager {
+    constructor() {
+        this.events = [];
+        this.calendar = null;
+        this.currentEditingEventId = null;
+        this.initializeCalendar();
+        this.setupFirebaseListener();
+    }
+
+    setupFirebaseListener() {
+        firestore.subscribeToEvents((events) => {
+            this.events = events;
+            if (this.calendar) {
+                this.calendar.removeAllEvents();
+                this.calendar.addEventSource(this.events);
+            }
+        });
+    }
+
+    initializeCalendar() {
+        const calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
+
+        this.calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'ja',
+            height: 'auto',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            buttonText: {
+                today: '今日',
+                month: '月',
+                week: '週',
+                day: '日'
+            },
+            events: this.getAllEvents(),
+            eventClick: this.handleEventClick.bind(this),
+            dateClick: this.handleDateClick.bind(this),
+            editable: true,
+            selectable: true,
+            selectMirror: true,
+            dayMaxEvents: true,
+            eventTimeFormat: {
+                hour: 'numeric',
+                minute: '2-digit',
+                meridiem: false
+            }
+        });
+
+        this.calendar.render();
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    getAllEvents() {
+        const taskEvents = taskManager ? taskManager.tasks
+            .filter(task => task.date)
+            .map(task => ({
+                title: task.text,
+                start: task.date,
+                allDay: true,
+                backgroundColor: this.getPriorityColor(task.priority),
+                extendedProps: {
+                    type: 'task'
+                }
+            })) : [];
+
+        return [...this.events, ...taskEvents];
+    }
+
+    getPriorityColor(priority) {
+        const colors = {
+            high: '#dc3545',
+            medium: '#ffc107',
+            low: '#28a745'
+        };
+        return colors[priority] || colors.low;
+    }
+
+    async addEvent() {
+        const title = document.getElementById('eventTitle').value;
+        const date = document.getElementById('eventDate').value;
+        const startTime = document.getElementById('eventStartTime').value;
+        const endTime = document.getElementById('eventEndTime').value;
+        const location = document.getElementById('eventLocation').value;
+        const type = document.getElementById('eventType').value;
+        const description = document.getElementById('eventDescription').value;
+
+        if (!title || !date) {
+            alert('タイトルと日付は必須です。');
+            return;
+        }
+
+        const newEvent = {
+            title: title,
+            start: startTime ? `${date}T${startTime}` : date,
+            end: endTime ? `${date}T${endTime}` : date,
+            allDay: !startTime,
+            extendedProps: {
+                location: location,
+                type: type,
+                description: description
+            }
+        };
+
+        try {
+            await firestore.addEvent(newEvent);
+            this.clearEventForm();
+        } catch (error) {
+            console.error('Error adding event:', error);
+            alert('イベントの追加中にエラーが発生しました。');
+        }
+    }
+
+    clearEventForm() {
+        const elements = [
+            'eventTitle', 'eventDate', 'eventStartTime', 
+            'eventEndTime', 'eventLocation', 'eventDescription'
+        ];
+        
+        elements.forEach(elementId => {
+            const element = document.getElementById(elementId);
+            if (element) element.value = '';
+        });
+
+        const typeSelect = document.getElementById('eventType');
+        if (typeSelect) typeSelect.value = 'other';
+    }
+
+    handleEventClick(info) {
+        const event = info.event;
+        this.showEventModal(event);
+    }
+
+    handleDateClick(info) {
+        const dateInput = document.getElementById('eventDate');
+        if (dateInput) dateInput.value = info.dateStr;
+    }
+
+    showEventModal(event) {
+        console.log('Showing event modal for event:', event);
+        const modal = document.getElementById('eventModal');
+        if (!modal) return;
+
+        this.currentEditingEventId = event.id;
+
+        const elements = {
+            modalTitle: event.title,
+            modalDateTime: this.formatDateTime(event),
+            modalLocation: event.extendedProps?.location || '',
+            modalDescription: event.extendedProps?.description || ''
+        };
+
+        Object.entries(elements).forEach(([elementId, value]) => {
+            const element = document.getElementById(elementId);
+            if (element) element.textContent = value;
+        });
+
+        const editButton = document.getElementById('editEventButton');
+        if (editButton) {
+            editButton.onclick = () => {
+                this.closeModal();
+                this.showEditModal(event);
+            };
+        }
+
+        const deleteButton = document.getElementById('deleteEventButton');
+        if (deleteButton) {
+            deleteButton.onclick = () => this.deleteEvent(event.id);
+        }
+
+        modal.style.display = 'block';
+    }
+
+    showEditModal(event) {
+        console.log('Opening edit modal for event:', event);
+        const modal = document.getElementById('editEventModal');
+        if (!modal) return;
+
+        try {
+            this.currentEditingEventId = event.id;
+            console.log('Current editing event ID:', this.currentEditingEventId);
+
+            document.getElementById('editEventTitle').value = event.title;
+            
+            const startDate = new Date(event.start);
+            document.getElementById('editEventDate').value = startDate.toISOString().split('T')[0];
+
+            if (!event.allDay) {
+                document.getElementById('editEventStartTime').value = startDate.toTimeString().slice(0, 5);
+                if (event.end) {
+                    const endDate = new Date(event.end);
+                    document.getElementById('editEventEndTime').value = endDate.toTimeString().slice(0, 5);
+                }
+            }
+
+            document.getElementById('editEventLocation').value = event.extendedProps?.location || '';
+            document.getElementById('editEventType').value = event.extendedProps?.type || 'other';
+            document.getElementById('editEventDescription').value = event.extendedProps?.description || '';
+
+            modal.setAttribute('data-event-id', this.currentEditingEventId);
+            modal.style.display = 'block';
+        } catch (error) {
+            console.error('Error in showEditModal:', error);
+            alert('イベントの編集画面の表示中にエラーが発生しました。');
+        }
+    }
+
+    async updateEvent() {
+        try {
+            if (!this.currentEditingEventId) {
+                throw new Error('更新するイベントのIDが見つかりません。');
+            }
+
+            const updatedEvent = {
+                title: document.getElementById('editEventTitle').value,
+                start: document.getElementById('editEventDate').value,
+                allDay: !document.getElementById('editEventStartTime').value,
+                extendedProps: {
+                    location: document.getElementById('editEventLocation').value,
+                    type: document.getElementById('editEventType').value,
+                    description: document.getElementById('editEventDescription').value
+                }
+            };
+
+            const startTime = document.getElementById('editEventStartTime').value;
+            const endTime = document.getElementById('editEventEndTime').value;
+            
+            if (startTime) {
+                updatedEvent.start = `${updatedEvent.start}T${startTime}`;
+                if (endTime) {
+                    updatedEvent.end = `${updatedEvent.start.split('T')[0]}T${endTime}`;
+                }
+            }
+
+            await firestore.updateEvent(this.currentEditingEventId, updatedEvent);
+            this.closeEditModal();
+            
+        } catch (error) {
+            console.error('Error updating event:', error);
+            alert(`イベントの更新中にエラーが発生しました: ${error.message}`);
+        }
+    }
+
+    async deleteEvent(eventId) {
+        if (confirm('この予定を削除してもよろしいですか？')) {
+            try {
+                await firestore.deleteEvent(eventId);
+                this.closeModal();
+            } catch (error) {
+                console.error('Error deleting event:', error);
+                alert('イベントの削除中にエラーが発生しました。');
+            }
+        }
+    }
+
+    closeModal() {
+        const modal = document.getElementById('eventModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    closeEditModal() {
+        const modal = document.getElementById('editEventModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.removeAttribute('data-event-id');
+            this.currentEditingEventId = null;
+        }
+    }
+
+    formatDateTime(event) {
+        const options = { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric'
+        };
+        
+        const start = new Date(event.start);
+        const end = event.end ? new Date(event.end) : null;
+
+        if (event.allDay) {
+            return start.toLocaleDateString('ja-JP', options);
+        }
+
+        return `${start.toLocaleDateString('ja-JP', options)}${end ? ` - ${end.toLocaleTimeString('ja-JP')}` : ''}`;
     }
 }
 
@@ -612,4 +921,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('アプリケーションの初期化中にエラーが発生しました。');
     }
 });
-
