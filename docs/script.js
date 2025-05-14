@@ -161,8 +161,7 @@ class FileManager {
                 // カテゴリーに属するファイルの削除
                 const filesRef = collection(db, 'files');
                 const q = query(filesRef, where('category', '==', categoryName));
-                const snapshot = await getDocs(q);
-                
+                const snapshot = await getDocs(q);         
                 const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
                 await Promise.all(deletePromises);
 
@@ -173,71 +172,93 @@ class FileManager {
         }
     }
 
-    renderCategories() {
-        const categoryList = document.getElementById('categoryList');
-        if (!categoryList) return;
+renderCategories() {
+    const categoryList = document.getElementById('categoryList');
+    if (!categoryList) return;
 
-        categoryList.innerHTML = '';
+    categoryList.innerHTML = '';
 
-        this.categories.forEach(category => {
-            const categoryElement = document.createElement('div');
-            categoryElement.className = 'category-container';
-            
-            categoryElement.innerHTML = `
-                <div class="category-header">
-                    <h4>${category.name}</h4>
-                    <div class="category-actions">
-                        <label class="file-upload-label">
-                            ファイルを追加
-                            <input type="file" class="file-input" multiple>
-                        </label>
-                        <button class="delete-category-btn" type="button">
-                            カテゴリー削除
-                        </button>
-                    </div>
-                </div>
-                <div class="file-list">
-                    ${this.renderFiles(category.name)}
-                </div>
-            `;
-
-            const deleteButton = categoryElement.querySelector('.delete-category-btn');
-            deleteButton.addEventListener('click', () => this.deleteCategory(category.id, category.name));
-
-            const fileInput = categoryElement.querySelector('.file-input');
-            fileInput.addEventListener('change', (e) => this.handleFileUpload(category.name, e));
-
-            categoryList.appendChild(categoryElement);
-        });
-    }
-
-    renderFiles(categoryName) {
-        const categoryFiles = this.files[categoryName] || [];
-        if (categoryFiles.length === 0) {
-            return '<p class="no-files">ファイルはありません</p>';
-        }
-
-        return categoryFiles.map(file => `
-            <div class="file-item">
-                <span class="file-icon">${this.getFileIcon(file.name)}</span>
-                <div class="file-info">
-                    <div class="file-name">${file.name}</div>
-                    <div class="file-meta">
-                        バージョン: ${file.version} | 
-                        更新日: ${new Date(file.date).toLocaleDateString()}
-                    </div>
-                </div>
-                <div class="file-actions">
-                    <a href="${file.content}" download="${file.name}" class="download-btn">
-                        <button>ダウンロード</button>
-                    </a>
-                    <button class="delete-btn" onclick="fileManager.deleteFile('${categoryName}', '${file.id}')">
-                        削除
+    this.categories.forEach(category => {
+        const categoryElement = document.createElement('div');
+        categoryElement.className = 'category-container';
+        
+        categoryElement.innerHTML = `
+            <div class="category-header">
+                <h4>${category.name}</h4>
+                <div class="category-actions">
+                    <label class="file-upload-label">
+                        ファイルを追加
+                        <input type="file" class="file-input" multiple>
+                    </label>
+                    <button class="delete-category-btn" type="button">
+                        カテゴリー削除
                     </button>
                 </div>
             </div>
-        `).join('');
+            <div class="file-list">
+                ${this.renderFiles(category.name)}
+            </div>
+        `;
+
+        // ファイル削除ボタンのイベントリスナー
+        const fileList = categoryElement.querySelector('.file-list');
+        fileList.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-file-btn');
+            if (deleteBtn) {
+                const fileId = deleteBtn.dataset.fileId;
+                const categoryName = deleteBtn.dataset.category;
+                this.deleteFile(categoryName, fileId);  // thisを使用して現在のインスタンスのメソッドを呼び出す
+            }
+        });
+
+        // カテゴリー削除ボタンのイベントリスナー
+        const deleteCategoryBtn = categoryElement.querySelector('.delete-category-btn');
+        deleteCategoryBtn.addEventListener('click', () => 
+            this.deleteCategory(category.id, category.name));
+
+        // ファイルアップロードのイベントリスナー
+        const fileInput = categoryElement.querySelector('.file-input');
+        fileInput.addEventListener('change', (e) => 
+            this.handleFileUpload(category.name, e));
+
+        categoryList.appendChild(categoryElement);
+    });
+}
+
+
+
+
+renderFiles(categoryName) {
+    const categoryFiles = this.files[categoryName] || [];
+    if (categoryFiles.length === 0) {
+        return '<p class="no-files">ファイルはありません</p>';
     }
+
+    return categoryFiles.map(file => `
+        <div class="file-item">
+            <span class="file-icon">${this.getFileIcon(file.name)}</span>
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-meta">
+                    バージョン: ${file.version} | 
+                    更新日: ${new Date(file.date).toLocaleDateString()}
+                </div>
+            </div>
+            <div class="file-actions">
+                <a href="${file.content}" download="${file.name}" class="download-btn">
+                    <button type="button">ダウンロード</button>
+                </a>
+                <button type="button" 
+                    class="delete-file-btn" 
+                    data-file-id="${file.id}" 
+                    data-category="${categoryName}">削除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+
+
 
     getFileIcon(fileName) {
         const extension = fileName.split('.').pop().toLowerCase();
@@ -296,18 +317,36 @@ class FileManager {
         }
     }
 
-    async deleteFile(categoryName, fileId) {
-        if (confirm('このファイルを削除してもよろしいですか？')) {
-            try {
-                const fileRef = doc(db, 'files', fileId);
-                await deleteDoc(fileRef);
-            } catch (error) {
-                console.error('Error deleting file:', error);
-                alert('ファイルの削除中にエラーが発生しました。');
+async deleteFile(categoryName, fileId) {
+    if (!fileId || !categoryName) {
+        console.error('Missing required parameters:', { fileId, categoryName });
+        return;
+    }
+
+    if (confirm('このファイルを削除してもよろしいですか？')) {
+        try {
+            const fileRef = doc(db, 'files', fileId);
+            await deleteDoc(fileRef);
+            
+            // ローカルの状態を更新
+            if (this.files[categoryName]) {
+                this.files[categoryName] = this.files[categoryName].filter(
+                    file => file.id !== fileId
+                );
             }
+
+            this.renderCategories();
+            
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            alert('ファイルの削除中にエラーが発生しました。');
         }
     }
 }
+
+}
+
+
 // タスク管理クラス（Firebase対応版）
 class TaskManager {
     constructor() {
