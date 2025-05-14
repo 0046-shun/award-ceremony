@@ -71,17 +71,21 @@ class TabManager {
 
 // ファイル管理クラス（Firebase対応版）
 class FileManager {
-    constructor() {
-        this.categories = [];
-        this.files = {};
-        this.defaultCategories = [
-            '会場情報', '準備物', 'タイムテーブル', '台本',
-            '席次', '役員', '参加者', '配信文書'
-        ];
-        this.setupFirebaseListener();
-        this.initializeDefaultCategories();
-    }
-
+        constructor() {
+            this.categories = [];
+            this.files = {};
+            this.defaultCategories = [
+                '会場情報', '準備物', 'タイムテーブル', '台本',
+                '席次', '役員', '参加者', '配信文書'
+            ];
+            this.setupFirebaseListener();
+            this.initializeDefaultCategories();
+            
+            // DOMが読み込まれた後にイベントリスナーを設定
+            document.addEventListener('DOMContentLoaded', () => {
+                this.setupEventListeners();
+            });
+        }
     async initializeDefaultCategories() {
         try {
             const categoriesRef = collection(db, 'categories');
@@ -182,6 +186,7 @@ renderCategories() {
         const categoryElement = document.createElement('div');
         categoryElement.className = 'category-container';
         
+        // カテゴリーの内容を設定
         categoryElement.innerHTML = `
             <div class="category-header">
                 <h4>${category.name}</h4>
@@ -200,14 +205,14 @@ renderCategories() {
             </div>
         `;
 
-        // ファイル削除ボタンのイベントリスナー
+        // ファイル削除ボタンのイベントリスナーを設定
         const fileList = categoryElement.querySelector('.file-list');
         fileList.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.delete-file-btn');
             if (deleteBtn) {
                 const fileId = deleteBtn.dataset.fileId;
                 const categoryName = deleteBtn.dataset.category;
-                this.deleteFile(categoryName, fileId);  // thisを使用して現在のインスタンスのメソッドを呼び出す
+                this.deleteFile(categoryName, fileId);
             }
         });
 
@@ -224,7 +229,6 @@ renderCategories() {
         categoryList.appendChild(categoryElement);
     });
 }
-
 
 
 
@@ -256,6 +260,7 @@ renderFiles(categoryName) {
         </div>
     `).join('');
 }
+
 
 
 
