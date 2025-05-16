@@ -1,23 +1,20 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <title>表彰式管理システム</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表彰式管理システム</title>
     
-    <!-- FullCalendar -->
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
-    
-    <!-- Google Fonts -->
+    <!-- CSS -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-    
-    <!-- カスタムスタイルシート -->
     <link rel="stylesheet" href="styles.css">
-
-    <script type="module" src="firebaseConfig.js"></script>
-    <script type="module" src="script.js"></script>
-
+    
+    <!-- JavaScript -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src="firebaseConfig.js" defer></script>
+    <script type="module" src="script.js" defer></script>
 </head>
+
 <body>
     <div class="container">
         <h1>表彰式管理システム</h1>
@@ -118,7 +115,7 @@
                 <h3 id="modalTitle"></h3>
                 <p id="modalDateTime"></p>
                 <p id="modalLocation"></p>
-                <pre id="modalDescription" class="event-description"></pre>
+                <p id="modalDescription"></p>
                 <div class="modal-actions">
                     <button type="button" id="editEventButton">編集</button>
                     <button type="button" id="deleteEventButton" class="delete-btn">削除</button>
@@ -156,5 +153,6 @@
     <footer>
         <p>© 2025 表彰式管理システム</p>
     </footer>
+
 </body>
 </html>
