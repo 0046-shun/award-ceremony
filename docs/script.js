@@ -290,7 +290,7 @@ class TaskManager {
 
         return this.tasks.filter(task => {
             const priorityMatch = priorityValue === 'all' || task.priority === priorityValue;
-            const categoryMatch = categoryValue === '全て' || task.category === categoryValue;
+            const categoryMatch = categoryValue === '全てのカテゴリー' || task.category === categoryValue;
             return priorityMatch && categoryMatch;
         });
     }
