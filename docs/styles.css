@@ -384,4 +384,38 @@ footer {
     border-radius: 4px;
     max-height: 300px;
     overflow-y: auto;
+    line-height: 1.5;
+}
+
+#modalDescription {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: inherit;
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.success-message {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    animation: fadeOut 3s forwards;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
 }
