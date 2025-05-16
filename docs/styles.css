@@ -373,3 +373,15 @@ footer {
 .fc-view {
     overflow: visible;
 }
+
+.event-description {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: inherit;
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
