@@ -14,10 +14,16 @@
     <!-- カスタムスタイルシート -->
     <link rel="stylesheet" href="styles.css">
 
-    <script type="module" src="firebaseConfig.js"></script>
     <script type="module">
-        import { initializeApp } from './script.js';
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        import './firebaseConfig.js';
+        import * as app from './script.js';
+        window.addEventListener('DOMContentLoaded', () => {
+            window.fileManager = app.fileManager;
+            window.taskManager = app.taskManager;
+            window.scheduleManager = app.scheduleManager;
+            window.tabManager = app.tabManager;
+            app.initializeApp();
+        });
     </script>
 
 </head>
