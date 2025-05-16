@@ -2,7 +2,10 @@
 import { firestore } from './firebaseConfig.js';
 
 // グローバル変数の定義
-export let fileManager, taskManager, scheduleManager, tabManager;
+export let fileManager = null;
+export let taskManager = null;
+export let scheduleManager = null;
+export let tabManager = null;
 
 // タブ管理クラス
 export class TabManager {
@@ -692,7 +695,7 @@ function setupFilters() {
 }
 
 // アプリケーションの初期化
-window.initializeApp = async () => {
+export function initializeApp() {
     try {
         fileManager = new FileManager();
         taskManager = new TaskManager();
@@ -712,5 +715,5 @@ window.initializeApp = async () => {
         console.error('Error initializing application:', error);
         alert('アプリケーションの初期化中にエラーが発生しました。');
     }
-};
+}
 
