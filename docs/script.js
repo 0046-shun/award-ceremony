@@ -2,13 +2,10 @@
 import { firestore } from './firebaseConfig.js';
 
 // グローバル変数の定義
-export let fileManager = null;
-export let taskManager = null;
-export let scheduleManager = null;
-export let tabManager = null;
+let fileManager, taskManager, scheduleManager, tabManager;
 
 // タブ管理クラス
-export class TabManager {
+class TabManager {
     constructor() {
         this.initializeTabs();
         this.showInitialTab();
@@ -62,7 +59,7 @@ export class TabManager {
 }
 
 // ファイル管理クラス
-export class FileManager {
+class FileManager {
     constructor() {
         const defaultCategories = [
             '会場情報', '準備物', 'タイムテーブル', '台本',
@@ -224,7 +221,7 @@ export class FileManager {
 }
 
 // タスク管理クラス
-export class TaskManager {
+class TaskManager {
     constructor() {
         this.tasks = JSON.parse(localStorage.getItem('tasks')) || [];
         this.renderTasks();
@@ -293,7 +290,7 @@ export class TaskManager {
 
         return this.tasks.filter(task => {
             const priorityMatch = priorityValue === 'all' || task.priority === priorityValue;
-            const categoryMatch = categoryValue === '全てのカテゴリー' || task.category === categoryValue;
+            const categoryMatch = categoryValue === 'all' || task.category === categoryValue;
             return priorityMatch && categoryMatch;
         });
     }
@@ -317,7 +314,7 @@ export class TaskManager {
 }
 
 // スケジュール管理クラス
-export class ScheduleManager {
+class ScheduleManager {
     constructor() {
         this.events = [];
         this.calendar = null;
@@ -695,7 +692,7 @@ function setupFilters() {
 }
 
 // アプリケーションの初期化
-export function initializeApp() {
+document.addEventListener('DOMContentLoaded', async () => {
     try {
         fileManager = new FileManager();
         taskManager = new TaskManager();
@@ -710,10 +707,10 @@ export function initializeApp() {
             tabManager.showInitialTab();
         }
 
-        console.log('Application initialized with Firebase integration');
+        console.log('Application initialized successfully');
     } catch (error) {
         console.error('Error initializing application:', error);
         alert('アプリケーションの初期化中にエラーが発生しました。');
     }
-}
+});
 
