@@ -1,16 +1,5 @@
 // script.js
-import { firestore, db } from './firebaseConfig.js';
-import { 
-    collection, 
-    addDoc, 
-    getDocs, 
-    deleteDoc, 
-    doc, 
-    updateDoc, 
-    onSnapshot,
-    query,
-    where 
-} from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+import { firestore } from './firebaseConfig.js';
 
 // グローバル変数の定義
 let fileManager, taskManager, scheduleManager, tabManager;
@@ -69,201 +58,121 @@ class TabManager {
     }
 }
 
-// ファイル管理クラス（Firebase対応版）
+// ファイル管理クラス
 class FileManager {
-        constructor() {
-            this.categories = [];
-            this.files = {};
-            this.defaultCategories = [
-                '会場情報', '準備物', 'タイムテーブル', '台本',
-                '席次', '役員', '参加者', '配信文書'
-            ];
-            this.setupFirebaseListener();
-            this.initializeDefaultCategories();
-            
-            // DOMが読み込まれた後にイベントリスナーを設定
-            document.addEventListener('DOMContentLoaded', () => {
-                this.setupEventListeners();
-            });
-        }
-    async initializeDefaultCategories() {
-        try {
-            const categoriesRef = collection(db, 'categories');
-            const snapshot = await getDocs(categoriesRef);
-            
-            if (snapshot.empty) {
-                for (const category of this.defaultCategories) {
-                    await addDoc(categoriesRef, { name: category });
-                }
+    constructor() {
+        const defaultCategories = [
+            '会場情報', '準備物', 'タイムテーブル', '台本',
+            '席次', '役員', '参加者', '配信文書'
+        ];
+
+        const savedCategories = localStorage.getItem('categories');
+        this.categories = savedCategories ? JSON.parse(savedCategories) : defaultCategories;
+        this.files = JSON.parse(localStorage.getItem('files')) || {};
+        
+        this.categories.forEach(category => {
+            if (!this.files[category]) {
+                this.files[category] = [];
             }
-        } catch (error) {
-            console.error('Error initializing default categories:', error);
-        }
+        });
+
+        this.renderCategories();
     }
 
-    setupFirebaseListener() {
-        try {
-            // カテゴリーの監視
-            const categoriesRef = collection(db, 'categories');
-            onSnapshot(categoriesRef, (snapshot) => {
-                this.categories = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    name: doc.data().name
-                }));
-                this.renderCategories();
-            });
-
-            // ファイルの監視
-            const filesRef = collection(db, 'files');
-            onSnapshot(filesRef, (snapshot) => {
-                this.files = {};
-                snapshot.docs.forEach(doc => {
-                    const fileData = doc.data();
-                    if (!this.files[fileData.category]) {
-                        this.files[fileData.category] = [];
-                    }
-                    this.files[fileData.category].push({
-                        id: doc.id,
-                        ...fileData
-                    });
-                });
-                this.renderCategories();
-            });
-        } catch (error) {
-            console.error('Error setting up Firebase listeners:', error);
-        }
-    }
-
-    async addCategory() {
+    addCategory() {
         const input = document.getElementById('categoryInput');
         const categoryName = input.value.trim();
 
         if (categoryName) {
-            try {
-                const exists = this.categories.some(cat => cat.name === categoryName);
-                if (exists) {
-                    alert('同名のカテゴリーが既に存在します。');
-                    return;
-                }
-
-                const categoriesRef = collection(db, 'categories');
-                await addDoc(categoriesRef, { name: categoryName });
-                input.value = '';
-            } catch (error) {
-                console.error('Error adding category:', error);
-                alert('カテゴリーの追加中にエラーが発生しました。');
+            if (this.categories.includes(categoryName)) {
+                alert('同名のカテゴリーが既に存在します。');
+                return;
             }
+            this.categories.push(categoryName);
+            this.files[categoryName] = [];
+            this.saveToLocalStorage();
+            this.renderCategories();
+            input.value = '';
         }
     }
-    async deleteCategory(categoryId, categoryName) {
+
+    deleteCategory(categoryName) {
         if (confirm(`カテゴリー「${categoryName}」を削除してもよろしいですか？\nこのカテゴリー内のファイルもすべて削除されます。`)) {
-            try {
-                // カテゴリーの削除
-                const categoryRef = doc(db, 'categories', categoryId);
-                await deleteDoc(categoryRef);
-
-                // カテゴリーに属するファイルの削除
-                const filesRef = collection(db, 'files');
-                const q = query(filesRef, where('category', '==', categoryName));
-                const snapshot = await getDocs(q);         
-                const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-                await Promise.all(deletePromises);
-
-            } catch (error) {
-                console.error('Error deleting category:', error);
-                alert('カテゴリーの削除中にエラーが発生しました。');
-            }
+            this.categories = this.categories.filter(cat => cat !== categoryName);
+            delete this.files[categoryName];
+            this.saveToLocalStorage();
+            this.renderCategories();
         }
     }
 
-renderCategories() {
-    const categoryList = document.getElementById('categoryList');
-    if (!categoryList) return;
+    saveToLocalStorage() {
+        localStorage.setItem('categories', JSON.stringify(this.categories));
+        localStorage.setItem('files', JSON.stringify(this.files));
+    }
 
-    categoryList.innerHTML = '';
+    renderCategories() {
+        const categoryList = document.getElementById('categoryList');
+        if (!categoryList) return;
 
-    this.categories.forEach(category => {
-        const categoryElement = document.createElement('div');
-        categoryElement.className = 'category-container';
-        
-        // カテゴリーの内容を設定
-        categoryElement.innerHTML = `
-            <div class="category-header">
-                <h4>${category.name}</h4>
-                <div class="category-actions">
-                    <label class="file-upload-label">
-                        ファイルを追加
-                        <input type="file" class="file-input" multiple>
-                    </label>
-                    <button class="delete-category-btn" type="button">
-                        カテゴリー削除
+        categoryList.innerHTML = '';
+
+        this.categories.forEach(category => {
+            const categoryElement = document.createElement('div');
+            categoryElement.className = 'category-container';
+            
+            categoryElement.innerHTML = `
+                <div class="category-header">
+                    <h4>${category}</h4>
+                    <div class="category-actions">
+                        <label class="file-upload-label">
+                            ファイルを追加
+                            <input type="file" class="file-input" multiple>
+                        </label>
+                        <button class="delete-category-btn" type="button">
+                            カテゴリー削除
+                        </button>
+                    </div>
+                </div>
+                <div class="file-list">
+                    ${this.renderFiles(category)}
+                </div>
+            `;
+
+            const deleteButton = categoryElement.querySelector('.delete-category-btn');
+            deleteButton.addEventListener('click', () => this.deleteCategory(category));
+
+            const fileInput = categoryElement.querySelector('.file-input');
+            fileInput.addEventListener('change', (e) => this.handleFileUpload(category, e));
+
+            categoryList.appendChild(categoryElement);
+        });
+    }
+    renderFiles(category) {
+        if (!this.files[category] || this.files[category].length === 0) {
+            return '<p class="no-files">ファイルはありません</p>';
+        }
+
+        return this.files[category].map(file => `
+            <div class="file-item">
+                <span class="file-icon">${this.getFileIcon(file.name)}</span>
+                <div class="file-info">
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-meta">
+                        バージョン: ${file.version} | 
+                        更新日: ${new Date(file.date).toLocaleDateString()}
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <a href="${file.content}" download="${file.name}" class="download-btn">
+                        <button>ダウンロード</button>
+                    </a>
+                    <button class="delete-btn" onclick="fileManager.deleteFile('${category}', ${file.id})">
+                        削除
                     </button>
                 </div>
             </div>
-            <div class="file-list">
-                ${this.renderFiles(category.name)}
-            </div>
-        `;
-
-        // ファイル削除ボタンのイベントリスナーを設定
-        const fileList = categoryElement.querySelector('.file-list');
-        fileList.addEventListener('click', (e) => {
-            const deleteBtn = e.target.closest('.delete-file-btn');
-            if (deleteBtn) {
-                const fileId = deleteBtn.dataset.fileId;
-                const categoryName = deleteBtn.dataset.category;
-                this.deleteFile(categoryName, fileId);
-            }
-        });
-
-        // カテゴリー削除ボタンのイベントリスナー
-        const deleteCategoryBtn = categoryElement.querySelector('.delete-category-btn');
-        deleteCategoryBtn.addEventListener('click', () => 
-            this.deleteCategory(category.id, category.name));
-
-        // ファイルアップロードのイベントリスナー
-        const fileInput = categoryElement.querySelector('.file-input');
-        fileInput.addEventListener('change', (e) => 
-            this.handleFileUpload(category.name, e));
-
-        categoryList.appendChild(categoryElement);
-    });
-}
-
-
-
-renderFiles(categoryName) {
-    const categoryFiles = this.files[categoryName] || [];
-    if (categoryFiles.length === 0) {
-        return '<p class="no-files">ファイルはありません</p>';
+        `).join('');
     }
-
-    return categoryFiles.map(file => `
-        <div class="file-item">
-            <span class="file-icon">${this.getFileIcon(file.name)}</span>
-            <div class="file-info">
-                <div class="file-name">${file.name}</div>
-                <div class="file-meta">
-                    バージョン: ${file.version} | 
-                    更新日: ${new Date(file.date).toLocaleDateString()}
-                </div>
-            </div>
-            <div class="file-actions">
-                <a href="${file.content}" download="${file.name}" class="download-btn">
-                    <button type="button">ダウンロード</button>
-                </a>
-                <button type="button" 
-                    class="delete-file-btn" 
-                    data-file-id="${file.id}" 
-                    data-category="${categoryName}">削除</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-
-
-
 
     getFileIcon(fileName) {
         const extension = fileName.split('.').pop().toLowerCase();
@@ -274,154 +183,67 @@ renderFiles(categoryName) {
         return icons[extension] || '📎';
     }
 
-    async handleFileUpload(categoryName, event) {
+    handleFileUpload(category, event) {
         const files = event.target.files;
-
-        for (const file of Array.from(files)) {
-            try {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        const filesRef = collection(db, 'files');
-                        const q = query(
-                            filesRef, 
-                            where('category', '==', categoryName),
-                            where('name', '==', file.name)
-                        );
-                        const snapshot = await getDocs(q);
-
-                        let version = 1;
-                        if (!snapshot.empty) {
-                            const existingFile = snapshot.docs[0];
-                            version = (existingFile.data().version || 0) + 1;
-                            await deleteDoc(existingFile.ref);
-                        }
-
-                        await addDoc(filesRef, {
-                            name: file.name,
-                            content: e.target.result,
-                            category: categoryName,
-                            date: new Date().toISOString(),
-                            version: version,
-                            size: file.size,
-                            type: file.type
-                        });
-
-                    } catch (error) {
-                        console.error('Error saving file:', error);
-                        alert(`ファイル "${file.name}" の保存中にエラーが発生しました。`);
-                    }
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileData = {
+                    id: Date.now(),
+                    name: file.name,
+                    content: e.target.result,
+                    date: new Date().toISOString(),
+                    version: 1
                 };
-
-                reader.readAsDataURL(file);
-
-            } catch (error) {
-                console.error('Error processing file:', error);
-                alert(`ファイル "${file.name}" の処理中にエラーが発生しました。`);
-            }
-        }
+                
+                const existingFileIndex = this.files[category].findIndex(f => f.name === file.name);
+                if (existingFileIndex !== -1) {
+                    fileData.version = this.files[category][existingFileIndex].version + 1;
+                    this.files[category][existingFileIndex] = fileData;
+                } else {
+                    this.files[category].push(fileData);
+                }
+                
+                this.saveToLocalStorage();
+                this.renderCategories();
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
-async deleteFile(categoryName, fileId) {
-    if (!fileId || !categoryName) {
-        console.error('Missing required parameters:', { fileId, categoryName });
-        return;
-    }
-
-    if (confirm('このファイルを削除してもよろしいですか？')) {
-        try {
-            const fileRef = doc(db, 'files', fileId);
-            await deleteDoc(fileRef);
-            
-            // ローカルの状態を更新
-            if (this.files[categoryName]) {
-                this.files[categoryName] = this.files[categoryName].filter(
-                    file => file.id !== fileId
-                );
-            }
-
+    deleteFile(category, fileId) {
+        if (confirm('このファイルを削除してもよろしいですか？')) {
+            this.files[category] = this.files[category].filter(file => file.id !== fileId);
+            this.saveToLocalStorage();
             this.renderCategories();
-            
-        } catch (error) {
-            console.error('Error deleting file:', error);
-            alert('ファイルの削除中にエラーが発生しました。');
         }
     }
 }
 
-}
-
-
-// タスク管理クラス（Firebase対応版）
+// タスク管理クラス
 class TaskManager {
     constructor() {
-        this.tasks = [];
-        this.setupFirebaseListener();
+        this.tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        this.renderTasks();
     }
 
-    setupFirebaseListener() {
-        try {
-            const tasksRef = collection(db, 'tasks');
-            onSnapshot(tasksRef, (snapshot) => {
-                this.tasks = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                this.renderTasks();
-            }, (error) => {
-                console.error('Error in tasks listener:', error);
-            });
-        } catch (error) {
-            console.error('Error setting up tasks listener:', error);
-        }
+    addTask(text, date, priority, category) {
+        const task = {
+            id: Date.now(),
+            text: text,
+            date: date,
+            priority: priority,
+            category: category,
+            completed: false,
+            created: new Date().toISOString()
+        };
+        this.tasks.push(task);
+        this.saveTasks();
+        this.renderTasks();
     }
 
-    async addTask(text, date, priority, category) {
-        if (!text.trim()) return;
-
-        try {
-            const tasksRef = collection(db, 'tasks');
-            await addDoc(tasksRef, {
-                text: text,
-                date: date,
-                priority: priority,
-                category: category,
-                completed: false,
-                created: new Date().toISOString(),
-                lastUpdated: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('Error adding task:', error);
-            alert('タスクの追加中にエラーが発生しました。');
-        }
-    }
-
-    async toggleTask(id) {
-        try {
-            const task = this.tasks.find(t => t.id === id);
-            if (!task) return;
-
-            const taskRef = doc(db, 'tasks', id);
-            await updateDoc(taskRef, {
-                completed: !task.completed,
-                lastUpdated: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('Error toggling task:', error);
-            alert('タスクの状態更新中にエラーが発生しました。');
-        }
-    }
-
-    async deleteTask(id) {
-        if (confirm('このタスクを削除してもよろしいですか？')) {
-            try {
-                const taskRef = doc(db, 'tasks', id);
-                await deleteDoc(taskRef);
-            } catch (error) {
-                console.error('Error deleting task:', error);
-                alert('タスクの削除中にエラーが発生しました。');
-            }
-        }
+    saveTasks() {
+        localStorage.setItem('tasks', JSON.stringify(this.tasks));
     }
 
     renderTasks() {
@@ -431,45 +253,30 @@ class TaskManager {
         taskList.innerHTML = '';
         
         const filteredTasks = this.filterTasks();
-        const sortedTasks = this.sortTasks(filteredTasks);
-
-        sortedTasks.forEach(task => {
+        filteredTasks.forEach(task => {
             const taskElement = document.createElement('div');
             taskElement.className = `task-item ${task.priority}-priority`;
-            if (task.completed) {
-                taskElement.classList.add('completed');
-            }
-
             taskElement.innerHTML = `
                 <input type="checkbox" ${task.completed ? 'checked' : ''}>
                 <div class="task-info">
-                    <div class="task-text">${this.escapeHtml(task.text)}</div>
+                    <div class="task-text">${task.text}</div>
                     <div class="task-meta">
                         期限: ${task.date || '未設定'} | 
-                        優先度: ${this.getPriorityLabel(task.priority)} | 
-                        カテゴリー: ${this.escapeHtml(task.category)} |
-                        最終更新: ${new Date(task.lastUpdated).toLocaleString()}
+                        優先度: ${task.priority} | 
+                        カテゴリー: ${task.category}
                     </div>
                 </div>
-                <div class="task-actions">
-                    <button class="edit-btn">編集</button>
-                    <button class="delete-btn">削除</button>
-                </div>
+                <button class="delete-btn">削除</button>
             `;
 
             const checkbox = taskElement.querySelector('input[type="checkbox"]');
             checkbox.addEventListener('change', () => this.toggleTask(task.id));
-
-            const editButton = taskElement.querySelector('.edit-btn');
-            editButton.addEventListener('click', () => this.showEditTaskModal(task));
 
             const deleteButton = taskElement.querySelector('.delete-btn');
             deleteButton.addEventListener('click', () => this.deleteTask(task.id));
 
             taskList.appendChild(taskElement);
         });
-
-        this.updateTaskCounters();
     }
 
     filterTasks() {
@@ -483,84 +290,25 @@ class TaskManager {
 
         return this.tasks.filter(task => {
             const priorityMatch = priorityValue === 'all' || task.priority === priorityValue;
-            const categoryMatch = categoryValue === 'all' || task.category === categoryValue;
+            const categoryMatch = categoryValue === '全て' || task.category === categoryValue;
             return priorityMatch && categoryMatch;
         });
     }
 
-    sortTasks(tasks) {
-        return [...tasks].sort((a, b) => {
-            if (a.completed !== b.completed) {
-                return a.completed ? 1 : -1;
-            }
-            if (a.date && b.date) {
-                return new Date(a.date) - new Date(b.date);
-            }
-            if (a.date) return -1;
-            if (b.date) return 1;
-            
-            const priorityOrder = { high: 0, medium: 1, low: 2 };
-            return priorityOrder[a.priority] - priorityOrder[b.priority];
-        });
-    }
-
-    async showEditTaskModal(task) {
-        try {
-            const result = await this.showTaskEditDialog(task);
-            if (result) {
-                const taskRef = doc(db, 'tasks', task.id);
-                await updateDoc(taskRef, {
-                    ...result,
-                    lastUpdated: new Date().toISOString()
-                });
-            }
-        } catch (error) {
-            console.error('Error updating task:', error);
-            alert('タスクの更新中にエラーが発生しました。');
+    toggleTask(id) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+            task.completed = !task.completed;
+            this.saveTasks();
+            this.renderTasks();
         }
     }
 
-    showTaskEditDialog(task) {
-        return new Promise((resolve) => {
-            const newText = prompt('タスクを編集:', task.text);
-            if (newText !== null) {
-                resolve({
-                    text: newText,
-                    lastUpdated: new Date().toISOString()
-                });
-            } else {
-                resolve(null);
-            }
-        });
-    }
-
-    getPriorityLabel(priority) {
-        const labels = {
-            high: '高',
-            medium: '中',
-            low: '低'
-        };
-        return labels[priority] || priority;
-    }
-
-    escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-
-    updateTaskCounters() {
-        const total = this.tasks.length;
-        const completed = this.tasks.filter(t => t.completed).length;
-        const pending = total - completed;
-
-        const countersElement = document.getElementById('taskCounters');
-        if (countersElement) {
-            countersElement.innerHTML = `
-                <div>全タスク: ${total}</div>
-                <div>完了: ${completed}</div>
-                <div>未完了: ${pending}</div>
-            `;
+    deleteTask(id) {
+        if (confirm('このタスクを削除してもよろしいですか？')) {
+            this.tasks = this.tasks.filter(task => task.id !== id);
+            this.saveTasks();
+            this.renderTasks();
         }
     }
 }
@@ -740,7 +488,6 @@ class ScheduleManager {
 
         modal.style.display = 'block';
     }
-
     showEditModal(event) {
         console.log('Opening edit modal for event:', event);
         const modal = document.getElementById('editEventModal');
@@ -965,3 +712,4 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('アプリケーションの初期化中にエラーが発生しました。');
     }
 });
+
