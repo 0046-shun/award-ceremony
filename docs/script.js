@@ -2,10 +2,10 @@
 import { firestore } from './firebaseConfig.js';
 
 // グローバル変数の定義
-let fileManager, taskManager, scheduleManager, tabManager;
+export let fileManager, taskManager, scheduleManager, tabManager;
 
 // タブ管理クラス
-class TabManager {
+export class TabManager {
     constructor() {
         this.initializeTabs();
         this.showInitialTab();
@@ -59,7 +59,7 @@ class TabManager {
 }
 
 // ファイル管理クラス
-class FileManager {
+export class FileManager {
     constructor() {
         const defaultCategories = [
             '会場情報', '準備物', 'タイムテーブル', '台本',
@@ -221,7 +221,7 @@ class FileManager {
 }
 
 // タスク管理クラス
-class TaskManager {
+export class TaskManager {
     constructor() {
         this.tasks = JSON.parse(localStorage.getItem('tasks')) || [];
         this.renderTasks();
@@ -312,8 +312,9 @@ class TaskManager {
         }
     }
 }
+
 // スケジュール管理クラス
-class ScheduleManager {
+export class ScheduleManager {
     constructor() {
         this.events = [];
         this.calendar = null;
@@ -691,7 +692,7 @@ function setupFilters() {
 }
 
 // アプリケーションの初期化
-document.addEventListener('DOMContentLoaded', async () => {
+window.initializeApp = async () => {
     try {
         fileManager = new FileManager();
         taskManager = new TaskManager();
@@ -711,5 +712,5 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error initializing application:', error);
         alert('アプリケーションの初期化中にエラーが発生しました。');
     }
-});
+};
 
